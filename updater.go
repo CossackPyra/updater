@@ -26,6 +26,19 @@ type updaterHandler struct {
 	execFilename string
 }
 
+var __debug_me bool = false
+
+func DebugMe(b1 bool) {
+	__debug_me = b1
+}
+
+func debug(s1 string) {
+	if !__debug_me {
+		return
+	}
+	fmt.Println(s1)
+}
+
 func UpdaterServer(tempDir string, key1 []byte, execFilename string) http.Handler {
 	rand1 := make([]byte, 16)
 	rand.Read(rand1)
@@ -33,7 +46,7 @@ func UpdaterServer(tempDir string, key1 []byte, execFilename string) http.Handle
 }
 
 func reportError(w http.ResponseWriter, s1 string) {
-	fmt.Println("reportError = " + s1)
+	debug("reportError = " + s1)
 	m1 := map[string]interface{}{"error": true, "message": s1}
 	b1, _ := json.MarshalIndent(m1, "", "\t")
 	w.Write(b1)
@@ -45,11 +58,11 @@ func reportOk(w http.ResponseWriter) {
 }
 
 func (u *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("updater.ServeHTTP")
+	debug("updater.ServeHTTP")
 	w.Header().Set("Content-Type", "text/plain; charset=UTF-8")
 	if r.Method == "GET" {
 		w.Write(u.rand1)
-		fmt.Println(hex.EncodeToString(u.rand1))
+		debug(hex.EncodeToString(u.rand1))
 		return
 	}
 	f1, err := ioutil.TempFile(u.tempDir, "upX17")
@@ -94,7 +107,7 @@ func (u *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stream.XORKeyStream(rand0[:], rand0[:])
-	fmt.Println("rand0: " + hex.EncodeToString(rand0))
+	debug("rand0: " + hex.EncodeToString(rand0))
 
 	hash1 := make([]byte, 20)
 	_, err = r.Body.Read(hash1)
@@ -118,7 +131,7 @@ func (u *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		stream.XORKeyStream(bx2[:], bx2[:])
-		fmt.Println("header: " + string(bx2))
+		debug("header: " + string(bx2))
 		if !bytes.Equal(bx2, bx1) {
 			reportError(w, "Failed wrong header")
 			return
@@ -180,10 +193,10 @@ func (u *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// os.Remove(os.Args[0])
 		// ioutil.WriteFile(os.Args[0], b, 0700)
 		os.Chmod(u.execFilename, 0700)
-		fmt.Println("updater.ServeHTTP RUN")
+		debug("updater.ServeHTTP RUN")
 		syscall.Exec(u.execFilename, []string{u.execFilename}, []string{})
 	}()
-	fmt.Println("updater.ServeHTTP END")
+	debug("updater.ServeHTTP END")
 
 	reportOk(w)
 }
@@ -192,20 +205,20 @@ func PostFile(url string, filename string, key1 []byte) error {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		fmt.Println("err 100")
+		debug("err 100")
 		return err
 	}
 	rand1, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("err 200")
+		debug("err 200")
 		return err
 	}
 
-	fmt.Println("Got rand1: " + hex.EncodeToString(rand1))
+	debug("Got rand1: " + hex.EncodeToString(rand1))
 
 	block, err := aes.NewCipher([]byte(key1))
 	if err != nil {
-		fmt.Println("err 300")
+		debug("err 300")
 		return err
 	}
 
@@ -213,7 +226,7 @@ func PostFile(url string, filename string, key1 []byte) error {
 
 	b1, err := ioutil.ReadFile(filename)
 	if err != nil {
-		fmt.Println("err 400")
+		debug("err 400")
 		return err
 	}
 
@@ -224,7 +237,7 @@ func PostFile(url string, filename string, key1 []byte) error {
 	rand0 := make([]byte, 20)
 	rand.Read(rand0)
 	buf.Write(rand0)
-	fmt.Println("rand0: " + hex.EncodeToString(rand0))
+	debug("rand0: " + hex.EncodeToString(rand0))
 
 	buf.Write(hash1[:])
 	io.WriteString(buf, "pyra-poster")
@@ -240,7 +253,7 @@ func PostFile(url string, filename string, key1 []byte) error {
 
 	req, err := http.NewRequest("POST", url, buf)
 	if err != nil {
-		fmt.Println("err 500")
+		debug("err 500")
 		return err
 	}
 
@@ -251,17 +264,17 @@ func PostFile(url string, filename string, key1 []byte) error {
 
 	b2, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("err 600")
+		debug("err 600")
 		return err
 	}
 	var m1 map[string]interface{}
 	err = json.Unmarshal(b2, &m1)
 	if err != nil {
-		fmt.Println("err 700")
+		debug("err 700")
 		return err
 	}
 	if m1["error"] == true {
-		fmt.Println("err 800")
+		debug("err 800")
 		return errors.New(fmt.Sprintf("Remote Error: %v", m1["message"]))
 	}
 	return nil
