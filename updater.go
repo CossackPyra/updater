@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha1"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -34,6 +35,11 @@ func UpdaterServer(tempDir string, key1 []byte, execFilename string) http.Handle
 func reportError(w http.ResponseWriter, s1 string) {
 	fmt.Println("reportError = " + s1)
 	m1 := map[string]interface{}{"error": true, "message": s1}
+	b1, _ := json.MarshalIndent(m1, "", "\t")
+	w.Write(b1)
+}
+func reportOk(w http.ResponseWriter) {
+	m1 := map[string]interface{}{"ok": true}
 	b1, _ := json.MarshalIndent(m1, "", "\t")
 	w.Write(b1)
 }
@@ -81,6 +87,15 @@ func (u *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	stream := cipher.NewCFBDecrypter(block, u.rand1)
 
+	rand0 := make([]byte, 20)
+	_, err = r.Body.Read(rand0)
+	if err != nil {
+		reportError(w, "Failed read rand0: "+err.Error())
+		return
+	}
+	stream.XORKeyStream(rand0[:], rand0[:])
+	fmt.Println("rand0: " + hex.EncodeToString(rand0))
+
 	hash1 := make([]byte, 20)
 	_, err = r.Body.Read(hash1)
 	if err != nil {
@@ -88,6 +103,27 @@ func (u *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stream.XORKeyStream(hash1[:], hash1[:])
+
+	{
+		// header
+		buf1 := new(bytes.Buffer)
+		io.WriteString(buf1, "pyra-poster")
+		binary.Write(buf1, binary.LittleEndian, int16(1))
+		binary.Write(buf1, binary.LittleEndian, int32(0))
+		bx1 := buf1.Bytes()
+		bx2 := make([]byte, len(bx1))
+		_, err = r.Body.Read(bx2)
+		if err != nil {
+			reportError(w, "Failed read header: "+err.Error())
+			return
+		}
+		stream.XORKeyStream(bx2[:], bx2[:])
+		fmt.Println("header: " + string(bx2))
+		if !bytes.Equal(bx2, bx1) {
+			reportError(w, "Failed wrong header")
+			return
+		}
+	}
 
 	h := sha1.New()
 
@@ -149,6 +185,7 @@ func (u *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 	fmt.Println("updater.ServeHTTP END")
 
+	reportOk(w)
 }
 
 func PostFile(url string, filename string, key1 []byte) error {
@@ -183,7 +220,17 @@ func PostFile(url string, filename string, key1 []byte) error {
 	hash1 := sha1.Sum(b1)
 
 	buf := new(bytes.Buffer)
+
+	rand0 := make([]byte, 20)
+	rand.Read(rand0)
+	buf.Write(rand0)
+	fmt.Println("rand0: " + hex.EncodeToString(rand0))
+
 	buf.Write(hash1[:])
+	io.WriteString(buf, "pyra-poster")
+	binary.Write(buf, binary.LittleEndian, int16(1))
+	binary.Write(buf, binary.LittleEndian, int32(0))
+
 	buf.Write(b1)
 	b1 = buf.Bytes()
 
