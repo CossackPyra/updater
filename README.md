@@ -59,5 +59,5 @@ __pyra-poster Installation__
 
     go get github.com/CossackPyra/updater/pyra-poster
 
-I designed it for Linux. I use it on servers and Raspbery Pi (gobot), but current version will not work on Windows.
+I designed it for Linux. I use it on servers and Raspbery Pi (gobot), current version will not work on Windows.
 
